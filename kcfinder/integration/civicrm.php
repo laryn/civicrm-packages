@@ -57,6 +57,9 @@ function checkAuthentication() {
     case 'Drupal6':
       $auth_function = 'authenticate_drupal';
       break;
+    case 'Backdrop':
+      $auth_function = 'authenticate_backdrop';
+      break;
     case 'Joomla':
       $auth_function = 'authenticate_joomla';
       break;
@@ -71,7 +74,7 @@ function checkAuthentication() {
     $_SESSION['KCFINDER']['disabled'] = false;
     $_SESSION['KCFINDER']['uploadURL'] = $config->imageUploadURL;
     $_SESSION['KCFINDER']['uploadDir'] = $config->imageUploadDir;
-
+    
     $authenticated = true;
     chdir( $current_cwd );
   }
@@ -105,6 +108,44 @@ function authenticate_drupal($config) {
   if (CRM_Core_Permission::check('access CiviCRM')) {
     return true;
   }
+  return false;
+}
+
+/**
+ * If the user is already logged into Backdrop, bootstrap
+ * Backdrop with this user's permissions. Based on the authenticate_drupal
+ * function.
+ **/
+function authenticate_backdrop($config) {
+  global $base_url;
+  $base_root = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') ? 'https' : 'http';
+  $base_url = $base_root .= '://'. preg_replace('/[^a-z0-9-:._]/i', '', $_SERVER['HTTP_HOST']);
+
+  if ($dir = trim(dirname($_SERVER['SCRIPT_NAME']), '\,/')) {
+    $base_path = "/$dir";
+    $base_url .= $base_path;
+  }
+
+  // correct base_url so it points to Backdrop root
+  $pos = strpos($base_url, '/modules/');
+  if ($pos === FALSE) {
+    $pos = strpos($base_url, '/profiles/');
+  }
+  $base_url = substr($base_url, 0, $pos); // Backdrop root absolute url
+
+  //In case it's not loading the Backdrop user (CRM-19466)
+  global $user;
+  if(empty($user) && isset($_COOKIE[session_name()])) {
+    _backdrop_session_read($_COOKIE[session_name()]);  
+  }
+  CRM_Utils_System::loadBootStrap(CRM_Core_DAO::$_nullArray,true,false);
+
+  // check if user has access permission...
+  if (CRM_Core_Permission::check('access CiviCRM')) {
+    debug('Yes');
+    return true;
+  }
+  debug('No');
   return false;
 }
 
